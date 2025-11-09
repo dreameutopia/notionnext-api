@@ -1,0 +1,28 @@
+{
+  "name": "notionnext-api-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker API for NotionNext with multi-tenant support",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env dev",
+    "db:init": "wrangler d1 execute notionnext-db --file=./schema.sql",
+    "db:init:dev": "wrangler d1 execute notionnext-db-dev --file=./schema.sql",
+    "db:migrate": "wrangler d1 migrations apply notionnext-db",
+    "db:seed": "node scripts/seed.js",
+    "test": "vitest"
+  },
+  "keywords": ["cloudflare", "worker", "notion", "blog", "multi-tenant"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "wrangler": "^3.86.1",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "itty-router": "^5.0.0",
+    "nanoid": "^5.0.0"
+  }
+}
