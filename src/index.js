@@ -33,6 +33,10 @@ router.get('/health', () => {
  * ============================================
  */
 
+// Notion 私有 API 端点（notion-client 使用）
+router.post('/api/v3/loadPageChunk', handleNotionAPI.getPage);
+router.post('/loadPageChunk', handleNotionAPI.getPage);
+
 // 获取页面数据（包含所有 blocks）
 router.post('/api/v3/getPage', handleNotionAPI.getPage);
 router.post('/getPage', handleNotionAPI.getPage);
