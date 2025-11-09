@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "notionnext-db"
-database_id = "your-database-id" # 运行 wrangler d1 create notionnext-db 后替换
+database_id = "718e4959-1ba8-4541-a879-7646f66d6d00" # 运行 wrangler d1 create notionnext-db 后替换
 
 # KV 绑定（用于缓存）
 [[kv_namespaces]]
