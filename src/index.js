@@ -8,7 +8,7 @@ import { handleNotionAPI } from './handlers/notion-api';
 import { handleTenantAPI } from './handlers/tenant-api';
 import { handleContentAPI } from './handlers/content-api';
 import { corsHeaders, errorResponse, successResponse } from './utils/response';
-import { validateTenant } from './middleware/tenant';
+import { tenantMiddleware } from './middleware/tenant';
 import { logActivity } from './utils/logger';
 
 const router = Router();
