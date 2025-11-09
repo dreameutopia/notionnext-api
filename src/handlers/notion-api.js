@@ -9,32 +9,97 @@ import { buildRecordMap } from '../utils/notion-format';
 
 /**
  * 获取页面数据（核心端点）
- * POST /getPage
- * Body: { pageId: string }
+ * POST /getPage 或 /loadPageChunk
+ * Body: { pageId: string } 或 { page: { id: string } }
  */
 async function getPage(request, env) {
   try {
-    const { pageId } = await request.json();
+    const body = await request.json();
+    
+    // 支持多种请求格式
+    let pageId = body.pageId || body.page?.id || body.id;
     
     if (!pageId) {
       return errorResponse('pageId is required', 400);
     }
 
+    console.log('[Worker] getPage called with pageId:', pageId);
+
     // 获取租户信息
-    const tenantId = await getTenantFromRequest(request, env);
+    let tenantId = await getTenantFromRequest(request, env);
+    console.log('[Worker] Initial tenantId:', tenantId);
+    
+    // 如果 pageId 是 Notion 格式的 ID，尝试从租户表查找映射
+    if (pageId.length === 32 && !/^page-/.test(pageId)) {
+      console.log('[Worker] Detecting Notion Page ID format, looking for tenant mapping...');
+      
+      const tenant = await env.DB.prepare(`
+        SELECT id, root_page_id FROM tenants 
+        WHERE root_page_id = ? OR id = ?
+        ORDER BY 
+          CASE WHEN root_page_id = ? THEN 0 ELSE 1 END
+        LIMIT 1
+      `).bind(pageId, pageId, pageId).first();
+      
+      if (tenant) {
+        tenantId = tenant.id;
+        pageId = tenant.root_page_id;
+        console.log('[Worker] Found tenant mapping:', { tenantId, pageId });
+      } else {
+        // 如果找不到映射，使用默认租户
+        console.log('[Worker] No tenant mapping found, using default tenant');
+        const defaultTenant = await env.DB.prepare(`
+          SELECT id, root_page_id FROM tenants 
+          WHERE status = 'active' 
+          ORDER BY created_at ASC
+          LIMIT 1
+        `).first();
+        
+        if (defaultTenant) {
+          tenantId = defaultTenant.id;
+          pageId = defaultTenant.root_page_id;
+          console.log('[Worker] Using default tenant:', { tenantId, pageId });
+        }
+      }
+    }
 
     // 从数据库获取页面及其所有子块
     const blocks = await fetchPageBlocks(env.DB, pageId, tenantId);
     
+    console.log('[Worker] Fetched blocks count:', blocks.length);
+    
     if (blocks.length === 0) {
+      console.error('[Worker] No blocks found for pageId:', pageId, 'tenantId:', tenantId);
       return errorResponse('Page not found', 404);
     }
 
     // 获取相关的 collections
     const collections = await fetchPageCollections(env.DB, pageId, tenantId);
+    console.log('[Worker] Fetched collections count:', collections.length);
     
     // 获取 collection views
     const collectionViews = await fetchCollectionViews(env.DB, collections.map(c => c.id), tenantId);
+    console.log('[Worker] Fetched collection views count:', collectionViews.length);
+    
+    // 如果是 collection_view_page，需要获取 collection 的所有文章
+    const mainBlock = blocks[0];
+    if (mainBlock && mainBlock.type === 'collection_view_page') {
+      const collectionIds = JSON.parse(mainBlock.content || '[]');
+      console.log('[Worker] Collection page detected, collection IDs:', collectionIds);
+      
+      // 获取所有文章
+      for (const collectionId of collectionIds) {
+        const articles = await fetchCollectionArticles(env.DB, collectionId, tenantId);
+        console.log(`[Worker] Fetched ${articles.length} articles for collection:`, collectionId);
+        blocks.push(...articles);
+        
+        // 递归获取文章内容
+        for (const article of articles) {
+          const articleBlocks = await fetchPageBlocks(env.DB, article.id, tenantId, 5, 1);
+          blocks.push(...articleBlocks);
+        }
+      }
+    }
     
     // 构建 Notion RecordMap 格式
     const recordMap = buildRecordMap({
@@ -43,6 +108,8 @@ async function getPage(request, env) {
       collectionViews,
     });
 
+    console.log('[Worker] Built recordMap with', Object.keys(recordMap.block).length, 'blocks');
+
     return new Response(JSON.stringify(recordMap), {
       headers: {
         'Content-Type': 'application/json',
@@ -50,7 +117,7 @@ async function getPage(request, env) {
       },
     });
   } catch (error) {
-    console.error('getPage error:', error);
+    console.error('[Worker] getPage error:', error);
     return errorResponse(error.message, 500);
   }
 }
@@ -261,6 +328,23 @@ async function getUsers(request, env) {
   } catch (error) {
     return errorResponse(error.message, 500);
   }
+}
+
+/**
+ * 获取 collection 中的所有文章
+ */
+async function fetchCollectionArticles(db, collectionId, tenantId) {
+  const result = await db.prepare(`
+    SELECT * FROM blocks 
+    WHERE parent_id = ? 
+      AND parent_table = 'collection'
+      AND tenant_id = ? 
+      AND alive = 1
+      AND type = 'page'
+    ORDER BY created_time DESC
+  `).bind(collectionId, tenantId).all();
+
+  return result.results || [];
 }
 
 /**

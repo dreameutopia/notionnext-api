@@ -1,0 +1,9 @@
+name = "notionnext-api-test"
+main = "src/index-test.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 环境变量
+[vars]
+ENVIRONMENT = "test"
+API_VERSION = "1.0.0-test"
