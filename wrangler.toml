@@ -12,7 +12,7 @@ database_id = "your-database-id" # 运行 wrangler d1 create notionnext-db 后�
 # KV 绑定（用于缓存）
 [[kv_namespaces]]
 binding = "CACHE"
-id = "your-kv-id" # 运行 wrangler kv:namespace create CACHE 后替换
+id = "39780c3ec1214faeaab01f13f01d47ad" # 运行 wrangler kv:namespace create CACHE 后替换
 
 # R2 绑定（用于存储图片/文件）
 [[r2_buckets]]
